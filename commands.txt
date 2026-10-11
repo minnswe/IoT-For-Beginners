@@ -14,4 +14,12 @@ git config user.email
 git config --global user.name "NEW_USERNAME"
 git config --global user.email "newemail@example.com"
 
+To clone without translations, use sparse checkout:
+git clone --filter=blob:none --sparse https://github.com/microsoft/IoT-For-Beginners.git
+cd IoT-For-Beginners
+git sparse-checkout set --no-cone "/*" "!translations" "!translated_images"
+
+git log to view the history 
+
+
 
