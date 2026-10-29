@@ -1,0 +1,29 @@
+Lab 8.1: Factory Anomaly Detection (Step-by-Step)
+
+Objective: Write a statistical learning algorithm that calibrates an analog sensor, learns the "baseline," and triggers an alert if the data spikes abnormally.
+
+Step 1: Set up Adafruit IO
+Open your Adafruit IO Dashboard.
+Create a new block: Select the Indicator (it looks like a glowing light bulb).
+Create a new feed named factory-alarm. Link it.
+Set "On Condition" to = ON (Color: Red).
+Set "Off Condition" to = OFF (Color: Green).
+
+Step 2: Wokwi Hardware Setup
+Create a new ESP32 MicroPython project.
+Go to diagram.json, delete all, and paste this (ESP32 + Potentiometer + Red Alarm LED):
+Create the umqttsimple.py file and paste the MQTT library code inside it.
+
+Step 3: The MicroPython Code
+Paste this into main.py. This code features a "Calibration Phase" followed by a "Monitoring Phase."
+
+Step 4: Test the Statistical Learning!
+Before clicking play, make sure the slider in Wokwi is positioned somewhere in the middle.
+Click Play.
+Phase 1 (Learning): The console will say "CALIBRATING". Keep your hands off the mouse! The ESP32 is running a for loop to calculate the average of the current slider position.
+Phase 2 (Monitoring): Once it says "MONITORING MACHINE HEALTH", gently wiggle the slider just a little bit left and right. Notice that nothing happens. The machine ignores small noise!
+The Anomaly: Now, simulate a machine breaking down. Quickly drag the slider all the way to the Maximum (Right edge)!
+The Result: The ESP32 instantly detects the mathematical anomaly! The Red LED turns on in Wokwi, and the Indicator light on your Adafruit IO Dashboard turns RED!
+
+
+ "In the real world, Cloud servers cost money. Amazon, Microsoft, and Adafruit will block your IoT device if it spams them with data too quickly. This is why we must program 'Delays' or 'Cooldowns' into our Edge devices to respect the Cloud's speed limits!"

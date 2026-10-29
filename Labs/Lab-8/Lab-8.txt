@@ -1,0 +1,35 @@
+Objective: Combine MQTT and HTTP APIs into a single project. Use a state machine and a timer to prevent false positives from the Ultrasonic sensor.
+
+Step 1: Set up the Adafruit IO Dashboard
+Go to your Adafruit IO Dashboard.
+Create a new block: Select the Text Block.
+Create a new feed named stock-status. Link it.
+Set the Block Title to "Shelf Status".
+
+Step 2: Wokwi Hardware Setup
+Create a new ESP32 MicroPython project.
+Wire the diagram.json (ESP32 + HC-SR04).
+Don't forget to create the umqttsimple.py file and paste the MQTT library code inside it!
+
+Step 3: The MicroPython Code 
+Write your main.py. 
+This code is the ultimate IoT template. 
+It connects to Wi-Fi, handles MQTT, handles the LINE Messaging API, and runs the "Debounce Timer" logic.
+Use your Adafruit IO keys and LINE Messaging API Token!
+
+Step 4: Test the Logic!
+This is a very fun lab to test live in Wokwi.
+Click Play. Look at your Adafruit IO Dashboard; it will say "FULL".
+Test the False Positive: Click the Ultrasonic sensor. Drag the distance to 100cm (box removed). Count to 3 seconds, then quickly drag it back to 20cm (box returned).
+Notice what happens! The ESP32 says "False Positive Prevented" and does NOT send an alert.
+Test a Real Empty Shelf: Drag the distance to 100cm and wait 5 seconds.
+Watch the Adafruit dashboard instantly change to "EMPTY".
+Watch your real smartphone buzz with a LINE message telling the manager to restock!
+
+Submission Guideline:
+Write your Name, Student ID, Major and Year as comments at the top in main.py. 
+Save your work as a Wokwi project.
+Prepare a Lab report PDF file that includes a short explanation of your project and the project URL.
+Take a screenshot of your result.
+Submit both.
+

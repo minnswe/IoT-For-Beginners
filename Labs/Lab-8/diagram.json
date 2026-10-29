@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "author": "Instructor",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "sonic1", "top": -219.3, "left": 15.1, "attrs": {} }
+  ],
+  "connections": [
+    [ "esp:5V", "sonic1:VCC", "red", [ "h-71.81", "v-268.8", "h153.6" ] ],
+    [ "esp:GND.2", "sonic1:GND", "black", [ "h14.44", "v-76.8", "v-76.8" ] ],
+    [ "esp:12", "sonic1:TRIG", "blue", [ "h-62.21", "v-192", "h154" ] ],
+    [ "esp:14", "sonic1:ECHO", "yellow", [ "h-52.61", "v-172.8", "h116" ] ]
+  ],
+  "dependencies": {}
+}

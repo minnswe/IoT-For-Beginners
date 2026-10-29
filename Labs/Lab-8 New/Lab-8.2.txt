@@ -1,0 +1,65 @@
+Lab 9: Smart Factory Anomaly AI (Step-by-Step)
+
+Objective: Use your smartphone's accelerometer to collect data, train a Machine Learning model in Edge Impulse, and deploy a live classifier to detect an anomaly: "Dangerous Machine Vibrations".
+
+Step 1: Create an Edge Impulse Account
+Open your laptop browser and go to studio.edgeimpulse.com.
+Sign up for a free developer account.
+Click + Create new project. Name it Factory Anomaly Detection.
+When asked what type of data you are dealing with, select Accelerometer data.
+
+Step 2: Connect your Smartphone as an IoT Sensor
+We need to collect "Training Data" to teach the AI.
+On the left menu, click Devices.
+Click the Connect a new device button (top right).
+Select Use your mobile phone. A QR code will appear on your laptop screen.
+Take out your real smartphone, open the Camera app, and scan the QR code.
+Click the link. Your phone will ask for permission to use its motion sensors. Click Allow.
+Look at your laptop: Your phone will now appear in the Devices list with a green dot!
+
+Step 3: Collect Training Data
+We need to teach the AI what 3 different states feel like.
+On your laptop, click Data acquisition (left menu).
+On the right side, you will see the "Record new data" panel. Ensure your phone is selected.
+Set the Sensor to Accelerometer and Frequency to 62.5Hz.
+Collect State 1: IDLE
+Change the Label to Idle. Set Length to 10000 ms (10 seconds).
+Put your phone flat on the desk. Do not touch it.
+Click Start sampling. Wait 10 seconds.
+Collect State 2: NORMAL
+Change the Label to Normal.
+Pick up your phone and gently move it back and forth (like a smoothly running machine).
+Click Start sampling. Wait 10 seconds.
+Collect State 3: ANOMALY
+Change the Label to Anomaly.
+Shake your phone violently and randomly (simulating a machine breaking down).
+Click Start sampling. Wait 10 seconds.
+Repeat this process until you have about 1 minute of data for each of the 3 labels.
+
+Step 4: Design & Train the AI (The Neural Network)
+On the left menu, click Impulse design -> Create impulse.
+An "Impulse" is the AI pipeline.
+Click Add a processing block -> Choose Spectral Analysis (Great for repeating vibrations).
+Click Add a learning block -> Choose Classification (Keras).
+Click Save Impulse.
+On the left menu, click Spectral features. Click Save parameters, then click Generate features. (You will see a cool 3D map of your data!).
+On the left menu, click Classifier.
+Click the Start training button.
+Wait 1-2 minutes while the Cloud trains your Neural Network!
+When finished, look at the Model testing performance (aim for >85% accuracy).
+
+Step 5: Test the AI Live!
+On the left menu, click Deployment (or go back to your smartphone screen).
+On your smartphone browser (which should still be open), click Switch to Classification Mode at the bottom of the screen.
+The AI model will download directly into your phone's web browser!
+The Test:
+Put the phone on the desk. The screen will read Idle: 0.99.
+Gently move it. The screen will read Normal: 0.95.
+Shake it violently. The screen will instantly spike to Anomaly: 0.99!
+
+Lab Submission: Take a screenshot of your laptop showing the Edge Impulse "Classifier" accuracy graph, and a screenshot of your phone showing a live "Anomaly" detection. Submit both!
+
+💡 Instructor Note: Why this lab is perfect for Week 10
+If a student asks, "How does this connect to our ESP32?" you can explain:
+"In a physical project, Step 5 is different. Instead of testing on the phone, you click 'Export as C++ Library' in Edge Impulse. It gives you a .zip file containing the trained Neural Network. You include that file in your ESP32 code (using VS Code/Arduino), and the ESP32 can run the AI offline forever!"
+Because they are doing a Wokwi simulation for their final project, they cannot deploy C++ libraries to Wokwi easily, which is why testing it on the smartphone browser perfectly completes the learning objective without breaking the simulator!
