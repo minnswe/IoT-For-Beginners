@@ -1,63 +1,27 @@
+
 import network
 import time
-import urequests
-import json
-import gc
-from machine import Pin, time_pulse_us
+from machine import Pin, ADC
 from umqttsimple import MQTTClient
 
-# --- 1. CONFIGURATION ---
+# --- 1. CLOUD CONFIGURATION ---
 WIFI_SSID = "Wokwi-GUEST"
 WIFI_PASS = ""
-
-# Adafruit IO Config (Dashboard)
 AIO_SERVER = "io.adafruit.com"
-AIO_USER = ""
-AIO_KEY = ""
-AIO_FEED = AIO_USER + "/feeds/stock-status"
-
-# LINE API Config (Alerts)
-LINE_TOKEN = ""
+AIO_USER = ""  # <--- CHANGE THIS!
+AIO_KEY = ""             # <--- CHANGE THIS!
+AIO_FEED = AIO_USER + "/feeds/factory-alarm"
 
 # --- 2. HARDWARE SETUP ---
-trig_pin = Pin(12, Pin.OUT)
-echo_pin = Pin(14, Pin.IN)
+# Alarm LED on Pin 2
+alarm_led = Pin(2, Pin.OUT)
+alarm_led.value(0)
 
-def get_distance():
-    trig_pin.value(0)
-    time.sleep_us(2)
-    trig_pin.value(1)
-    time.sleep_us(10)
-    trig_pin.value(0)
-    pulse_time = time_pulse_us(echo_pin, 1, 30000)
-    if pulse_time < 0: return -1
-    return (pulse_time * 0.0343) / 2
+# Potentiometer on Analog Pin 34 (Simulating pipe pressure/vibration)
+sensor = ADC(Pin(34))
+#sensor.atten(ADC.ATTN_11V) # Allow reading full 3.3V range (0 to 4095)
 
-# --- 3. LINE NOTIFY FUNCTION ---
-def send_line_alert():
-    print("🚨 Sending RESTOCK Alert to Manager...")
-    url = "https://api.line.me/v2/bot/message/broadcast"
-    
-    payload = {"messages": [{"type": "text", "text": "⚠️ ALERT: Shelf is EMPTY! Please restock."}]}
-    json_payload = json.dumps(payload)
-    payload_bytes = json_payload.encode('utf-8')
-    
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + LINE_TOKEN,
-        'Content-Length': str(len(payload_bytes)),
-        'Connection': 'close'
-    }
-    
-    try:
-        gc.collect() # Free memory
-        res = urequests.post(url, headers=headers, data=payload_bytes)
-        if res.status_code == 200: print("✅ LINE Alert Sent!")
-        res.close()
-    except Exception as e:
-        print("LINE API Error:", e)
-
-# --- 4. NETWORK SETUP ---
+# --- 3. WI-FI & MQTT CONNECTION ---
 print("Connecting to Wi-Fi...")
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
@@ -65,46 +29,64 @@ wlan.connect(WIFI_SSID, WIFI_PASS)
 while not wlan.isconnected(): time.sleep(0.5)
 
 print("Connecting to Adafruit IO...")
-mqtt = MQTTClient("esp32_retail", AIO_SERVER, port=1883, user=AIO_USER, password=AIO_KEY)
+mqtt = MQTTClient("esp32_factory", AIO_SERVER, port=1883, user=AIO_USER, password=AIO_KEY)
 mqtt.connect()
 print("Cloud Ready!")
+mqtt.publish(AIO_FEED, "0") # Reset dashboard alarm
 
-# --- 5. MAIN RETAIL LOGIC (STATE MACHINE) ---
-current_state = "FULL"
-empty_seconds_counter = 0
+# --- 4. PHASE 1: STATISTICAL CALIBRATION ("LEARNING") ---
+print("\n⚙️ PHASE 1: CALIBRATING... DO NOT TOUCH THE MACHINE!")
+total_value = 0
+samples = 50
 
-print("\n🛒 Smart Shelf Monitoring Started...")
-mqtt.publish(AIO_FEED, "FULL") # Set dashboard to FULL on startup
+# Read the sensor 50 times over 5 seconds to learn what "Normal" is
+for i in range(samples):
+    reading = sensor.read()
+    total_value += reading
+    time.sleep(0.1)
+
+baseline = total_value / samples
+# Set the anomaly limit to 800 points above the normal baseline
+threshold = baseline + 800 
+
+print("✅ Calibration Complete!")
+print("Normal Baseline is: {:.0f}".format(baseline))
+print("Alarm will trigger if it goes above: {:.0f}".format(threshold))
+
+# --- 5. PHASE 2: MONITORING FOR ANOMALIES ---
+print("\n🏭 PHASE 2: MONITORING MACHINE HEALTH...")
+alarm_active = False
 
 while True:
-    distance = get_distance()
-    print("Distance: {:.1f} cm".format(distance))
+    current_pressure = sensor.read()
     
-    # LOGIC: If distance is > 50cm, the box is missing!
-    if distance > 50:
-        empty_seconds_counter += 1
-        print("Warning: Shelf looks empty. Confirming... ({} sec)".format(empty_seconds_counter))
-        
-        # If it has been empty for 5 consecutive seconds, change state!
-        if empty_seconds_counter >= 5 and current_state == "FULL":
-            current_state = "EMPTY"
-            print("❌ STATE CHANGED TO EMPTY!")
+    # Check for anomaly (Spike in pressure)
+    if current_pressure > threshold:
+        if not alarm_active:
+            print("🚨 ANOMALY DETECTED! Pressure spiked to:", current_pressure)
+            alarm_led.value(1)           
             
-            # 1. Update Dashboard
-            mqtt.publish(AIO_FEED, "EMPTY")
-            # 2. Send LINE Alert
-            send_line_alert()
+            try:
+                # Send "1" for Alarm "ON" 
+                mqtt.publish(AIO_FEED, "1") 
+            except Exception as e:
+                print("MQTT Cloud Error:", e)
+                
+            alarm_active = True
+            time.sleep(3) # Strict 3-second cooldown for Adafruit IO
             
     else:
-        # If someone was just holding a box and put it back, reset the counter!
-        if empty_seconds_counter > 0:
-            print("Box detected again! Resetting alarm counter (False Positive Prevented).")
-        empty_seconds_counter = 0
-        
-        # If the shelf is restocked, update state and dashboard
-        if current_state == "EMPTY":
-            current_state = "FULL"
-            print("📦 STATE CHANGED TO FULL! Shelf Restocked.")
-            mqtt.publish(AIO_FEED, "FULL")
+        if alarm_active:
+            print("✅ Machine returned to normal.")
+            alarm_led.value(0)
             
-    time.sleep(1) # Loop runs once every second
+            try:
+                # Send "0" for Alarm "OFF" 
+                mqtt.publish(AIO_FEED, "0") 
+            except Exception as e:
+                print("MQTT Cloud Error:", e)
+                
+            alarm_active = False
+            time.sleep(3) # Strict 3-second cooldown for Adafruit IO
+            
+    time.sleep(0.2)

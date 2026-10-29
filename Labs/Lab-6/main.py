@@ -1,77 +1,73 @@
-import network
+from machine import Pin, time_pulse_us
+import dht
 import time
-import urequests 
-import json
-from machine import Pin
 
-# --- CONFIGURATION ---
-WIFI_SSID = "Wokwi-GUEST"
-WIFI_PASS = ""
-# Paste your long LINE Messaging API Token inside the quotes below!
-LINE_TOKEN = "YOUR_CHANNEL_ACCESS_TOKEN_HERE" 
+# --- 1. HARDWARE SETUP ---
+# DHT22 Setup (Pin 15)
+temp_sensor = dht.DHT22(Pin(15))
 
-# Set up the Button on Pin 13.
-panic_button = Pin(13, Pin.IN, Pin.PULL_UP)
+# HC-SR04 Ultrasonic Setup
+# TRIG sends the sound wave (Output). ECHO listens for the bounce (Input).
+trig_pin = Pin(12, Pin.OUT)
+echo_pin = Pin(14, Pin.IN)
 
-# Connect to Wi-Fi
-print("Connecting to Wi-Fi...")
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-wlan.connect(WIFI_SSID, WIFI_PASS)
-while not wlan.isconnected():
-    time.sleep(0.5)
-print("Wi-Fi Connected!")
-
-# Function to send LINE message via Messaging API
-def send_line_alert():
-    print("Attempting to send LINE message...")
+# --- 2. ULTRASONIC FUNCTION ---
+def get_distance_cm():
+    # Ensure trigger is low initially
+    trig_pin.value(0)
+    time.sleep_us(2)
     
-    # The Broadcast URL sends the message to anyone who friended your bot
-    url = "https://api.line.me/v2/bot/message/broadcast"
+    # Send a 10-microsecond sound pulse
+    trig_pin.value(1)
+    time.sleep_us(10)
+    trig_pin.value(0)
     
-    # HTTP Headers (Authentication & Data Type)
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + LINE_TOKEN
-    }
+    # Measure how long the Echo pin stays HIGH (time for sound to return)
+    # Timeout is 30,000 microseconds (about 5 meters max distance)
+    pulse_time = time_pulse_us(echo_pin, 1, 30000)
     
-    # HTTP Payload (Formatted as JSON)
-    payload_data = {
-        "messages": [
-            {
-                "type": "text",
-                "text": "WARNING! The emergency panic button was pressed!"
-            }
-        ]
-    }
-    
-    # Convert Python dictionary to a JSON string
-    json_payload = json.dumps(payload_data)
-    
-    try:
-        # Send the POST request
-        response = urequests.post(url, headers=headers, data=json_payload)
+    if pulse_time < 0:
+        return -1 # Error or out of range
         
-        if response.status_code == 200:
-            print("Success! Check your LINE app.")
-        else:
-            print("Failed. Status Code:", response.status_code)
-            print("Error Details:", response.text)
-            
-        response.close() # Always close the connection
-        
-    except Exception as e:
-        print("Network error:", e)
+    # Math: Distance = (Time * Speed of Sound) / 2
+    # Speed of sound is 0.0343 cm per microsecond
+    distance = (pulse_time * 0.0343) / 2
+    return distance
 
-# Main Loop
-print("System Ready. Press the Red Button to send an alert.")
+# --- 3. MAIN LOOP & EDGE COMPUTING ---
+print("System Starting... Warming up sensors.")
+time.sleep(2)
+
 while True:
-    # If button value goes to 0 (pressed)
-    if panic_button.value() == 0:
-        print("Button Pressed!")
-        send_line_alert()
+    print("--- New Reading Cycle ---")
+    
+    # A. Read DHT22
+    try:
+        temp_sensor.measure()
+        temp = temp_sensor.temperature()
+        print("🌡️ Temp: {:.1f}°C".format(temp))
+    except OSError:
+        print("Failed to read DHT22")
+
+    # B. Edge Computing: Calculate Average Distance
+    # Instead of sending jumpy sensor data, we take 5 rapid readings 
+    # and calculate the average locally. This saves Cloud bandwidth!
+    total_distance = 0
+    valid_readings = 0
+    
+    for i in range(5):
+        dist = get_distance_cm()
+        if dist > 0:
+            total_distance += dist
+            valid_readings += 1
+        time.sleep(0.5) # Small delay between pings
         
-        # Wait 5 seconds so we don't spam the API
-        time.sleep(5) 
+    if valid_readings > 0:
+        avg_distance = total_distance / valid_readings
+        print("📏 Avg Distance: {:.1f} cm".format(avg_distance))
+    else:
+        print("📏 Distance: Out of Range")
         
-    time.sleep(0.1)
+    # In a real project, you would now MQTT Publish these variables to Adafruit IO!
+    print("-------------------------")
+    time.sleep(3) # Wait 3 seconds before next cycle
